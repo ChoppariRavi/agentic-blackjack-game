@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Midnight Blackjack - Agentic Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom "Green Felt" color and card styling */
+    .felt-table {
+      background-color: #1a5336;
+    }
+
+    .card {
+      width: 80px;
+      height: 120px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+    }
+
+    .red-card {
+      color: #cc0000;
+      background: white;
+    }
+
+    .black-card {
+      color: #000000;
+      background: white;
+    }
+
+    .card-back {
+      background: #aa2222;
+      color: white;
+      border: 2px solid white;
+    }
+
+    /* The Card Slide Animation */
+    @keyframes dealCard {
+        0% {
+            opacity: 0;
+            transform: translateY(-100px) translateX(100px) rotate(20deg);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0) translateX(0) rotate(0deg);
+        }
+    }
+
+    .card-animate {
+        animation: dealCard 0.4s ease-out forwards;
+        backface-visibility: hidden;
+    }
+
+    /* Optional: Add a slight "Pop" when the score updates */
+    @keyframes scorePop {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); color: #fbbf24; }
+        100% { transform: scale(1); }
+    }
+
+    .score-update {
+        animation: scorePop 0.3s ease-in-out;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-950 text-white font-sans">
+
+  <div class="felt-table p-8 border-b-8 border-yellow-900 rounded-b-[100px] shadow-2xl relative">
+    <div class="max-w-7xl mx-auto text-center">
+      <h1 class="text-5xl font-bold text-yellow-500 tracking-tight mb-2">MIDNIGHT BLACKJACK</h1>
+      <p class="text-yellow-200 text-lg mb-8">BLACKJACK PAYS 3:2 • Dealer stands on 17 • Agent vs. Dealer</p>
+    </div>
+
+    <div class="table_surface relative max-w-6xl mx-auto h-[500px]">
+
+      <div id="dealer-area" class="absolute top-10 left-1/2 -translate-x-1/2 text-center">
+        <div class="text-sm text-yellow-100 uppercase mb-2">Dealer Shows</div>
+        <div id="dealer-cards" class="flex gap-3 justify-center">
+        </div>
+      </div>
+
+      <div id="player-area" class="absolute bottom-10 left-1/2 -translate-x-1/2 text-center">
+        <div id="player-cards" class="flex gap-3 justify-center mb-4">
+        </div>
+        <div class="flex items-center gap-4 justify-center">
+          <div id="player-status" class="text-xl font-bold bg-gray-900 px-4 py-2 rounded-lg">Total: --</div>
+          <div id="game-status" class="text-xl text-yellow-400 font-black hidden"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto p-6 flex flex-wrap gap-6 items-start justify-between">
+
+    <div class="flex-1 min-w-[300px] bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800">
+      <h2 class="text-2xl font-semibold text-gray-100 mb-6">Player Actions</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <button id="btn-hit"
+          class="bg-green-600 hover:bg-green-700 p-4 rounded-xl font-bold text-lg disabled:opacity-50">HIT 🃏</button>
+        <button id="btn-stand"
+          class="bg-blue-600 hover:bg-blue-700 p-4 rounded-xl font-bold text-lg disabled:opacity-50">STAND 🛑</button>
+        <button id="btn-start"
+          class="bg-yellow-500 hover:bg-yellow-600 p-4 rounded-xl font-bold text-lg text-black col-span-2">NEW GAME
+          ♠♣</button>
+        <button id="btn-agent-play" type="button"
+          class="bg-indigo-600 hover:bg-indigo-700 p-4 rounded-xl font-bold text-lg col-span-2">AGENT STEP 🤖</button>
+        <button id="btn-demo" type="button"
+          class="bg-purple-600 hover:bg-purple-700 p-4 rounded-xl font-bold text-lg col-span-2 animate-pulse">WATCH AGENT PLAY 🤖🍿</button>
+      </div>
+    </div>
+
+    <div class="w-[400px] bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800 h-[300px] flex flex-col">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">🧠</span>
+        <h2 class="text-2xl font-semibold text-gray-100">Agent Actions Log</h2>
+      </div>
+      <div id="agent-log" class="flex-grow overflow-y-auto space-y-4 text-sm text-gray-300 pr-2">
+        <p>Welcome to Midnight Blackjack. Click 'New Game' to begin.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const dealerCardsDiv = document.getElementById('dealer-cards');
+      const playerCardsDiv = document.getElementById('player-cards');
+      const playerStatus = document.getElementById('player-status');
+      const agentLog = document.getElementById('agent-log');
+
+      function createCardUI(cardStr, isNew = false) {
+        const cardEl = document.createElement('div');
+        const isRed = cardStr.includes('♥') || cardStr.includes('♦');
+        let classes = `card ${isRed ? 'red-card' : 'black-card'} flex-shrink-0 shadow-lg`;
+        if (isNew) classes += ' card-animate';
+        cardEl.className = classes;
+        cardEl.innerText = cardStr;
+        return cardEl;
+      }
+
+      function updateUI(state) {
+        if (!state || state.error) {
+          if (state && state.error) console.warn(state.error);
+          return;
+        }
+        if (!Array.isArray(state.dealer_hand) || !Array.isArray(state.player_hand)) return;
+
+        const currentDealerCards = dealerCardsDiv.children.length;
+        const currentPlayerCards = playerCardsDiv.children.length;
+
+        dealerCardsDiv.innerHTML = '';
+        state.dealer_hand.forEach((card, index) => {
+          const isNew = index >= currentDealerCards;
+          if (index === 1 && state.status === 'IN_PROGRESS') {
+            const hidden = document.createElement('div');
+            hidden.className = 'card card-back' + (isNew ? ' card-animate' : '');
+            hidden.innerText = '?';
+            dealerCardsDiv.appendChild(hidden);
+          } else {
+            dealerCardsDiv.appendChild(createCardUI(card, isNew));
+          }
+        });
+
+        playerCardsDiv.innerHTML = '';
+        state.player_hand.forEach((card, index) => {
+          const isNew = index >= currentPlayerCards;
+          playerCardsDiv.appendChild(createCardUI(card, isNew));
+        });
+
+        playerStatus.classList.remove('score-update');
+        void playerStatus.offsetWidth;
+        playerStatus.classList.add('score-update');
+        playerStatus.innerText = `Total: ${state.player_score}`;
+
+        agentLog.innerHTML = '';
+        const history = state.history || [];
+        history.forEach((trace, index) => {
+          const action = trace.action_taken || trace.action || '?';
+          const reasoning = trace.agent_thought || trace.reasoning || '';
+          const entry = document.createElement('div');
+          entry.className = 'border-l-2 border-yellow-500 pl-3 py-1 bg-gray-800 rounded-r-md';
+          entry.innerHTML = `
+            <div class="font-bold text-yellow-400">Step ${index + 1}: ${action}</div>
+            <div class="italic text-gray-400">"${reasoning}"</div>
+          `;
+          agentLog.appendChild(entry);
+        });
+        agentLog.scrollTop = agentLog.scrollHeight;
+
+        const statusBox = document.getElementById('game-status');
+        if (state.status !== 'IN_PROGRESS') {
+          statusBox.innerText = (state.status || '').replace(/_/g, ' ');
+          statusBox.classList.remove('hidden');
+        } else {
+          statusBox.classList.add('hidden');
+        }
+      }
+
+      async function postJson(url, body) {
+        const opts = { method: 'POST', credentials: 'same-origin', headers: {} };
+        if (body !== undefined) {
+          opts.headers['Content-Type'] = 'application/json';
+          opts.body = JSON.stringify(body);
+        }
+        const response = await fetch(url, opts);
+        return response.json();
+      }
+
+      document.getElementById('btn-start').addEventListener('click', async () => {
+        const state = await postJson('/api/start');
+        updateUI(state);
+      });
+
+      document.getElementById('btn-hit').addEventListener('click', async () => {
+        const state = await postJson('/api/action', { action: 'HIT' });
+        updateUI(state);
+      });
+
+      document.getElementById('btn-stand').addEventListener('click', async () => {
+        const state = await postJson('/api/action', { action: 'STAND' });
+        updateUI(state);
+      });
+
+      document.getElementById('btn-agent-play').addEventListener('click', async () => {
+        const loadingMsg = document.createElement('div');
+        loadingMsg.className = 'text-yellow-500 animate-pulse';
+        loadingMsg.innerText = '> Agent is analyzing the deck...';
+        agentLog.appendChild(loadingMsg);
+
+        const state = await postJson('/api/agent_step');
+        updateUI(state);
+      });
+
+      let isDemoRunning = false;
+      async function startDemoMode() {
+        if (isDemoRunning) return;
+        isDemoRunning = true;
+        let state = await postJson('/api/start');
+        updateUI(state);
+
+        while (state && state.status === 'IN_PROGRESS') {
+          await new Promise((r) => setTimeout(r, 1500));
+          state = await postJson('/api/agent_step');
+          updateUI(state);
+        }
+        isDemoRunning = false;
+      }
+
+      document.getElementById('btn-demo').addEventListener('click', startDemoMode);
+    });
+  </script>
+
+</body>
+
+</html>
